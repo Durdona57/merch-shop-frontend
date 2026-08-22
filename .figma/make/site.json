@@ -1,0 +1,10 @@
+{
+  "description": "This online merch shop offers a curated selection of plushies, keychains, stickers, and mugs, providing a delightful shopping experience for fans.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

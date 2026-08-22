@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-cream: #fdf8f2;
+  --color-lavender: #e8e0f5;
+  --color-peach: #fde8d8;
+  --color-mint: #d8f0e8;
+  --color-rose: #fcdde8;
+  --color-sky: #daeeff;
+  --color-ink: #2d2140;
+  --color-muted: #7a6e8a;
+  --color-border: #e4ddf0;
+  --color-primary: #b191e8;
+  --color-primary-fg: #fff;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Nunito', system-ui, sans-serif;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background-color: #fdf8f2;
+  color: #2d2140;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d8ceee; border-radius: 999px; }
