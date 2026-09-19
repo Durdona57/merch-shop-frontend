@@ -68,15 +68,31 @@ function mapApiProduct(p: ApiProduct): Product {
   };
 }
 
-async function fetchProducts(): Promise<Product[]> {
-  const res = await fetch(`${API_BASE}/products/`);
+interface ApiProductPage {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: ApiProduct[];
+}
+
+async function fetchProductsPage(url: string): Promise<{ products: Product[]; next: string | null }> {
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load products (${res.status})`);
-  const data: ApiProduct[] = await res.json();
-  return data.map(mapApiProduct);
+  const data: ApiProductPage = await res.json();
+  return { products: data.results.map(mapApiProduct), next: data.next };
+}
+
+function categorySlug(cat: Category): string | null {
+  return cat === "All" ? null : cat.toLowerCase();
+}
+
+function productsUrlFor(cat: Category): string {
+  const slug = categorySlug(cat);
+  return slug ? `${API_BASE}/products/?category=${slug}` : `${API_BASE}/products/`;
 }
 
 // Fallback data shown briefly before the API responds (or if it fails).
-let PRODUCTS: Product[] = [
+const FALLBACK_PRODUCTS: Product[] = [
   { id: 1, name: "Cloud Puff Plushie", category: "Plushies", price: 28, emoji: "🌤️", bg: "#daeeff", accent: "#8bbfe8", desc: "Ultra-soft cloud friend, perfect for desk hugs." },
   { id: 2, name: "Strawberry Bear", category: "Plushies", price: 32, emoji: "🍓", bg: "#fcdde8", accent: "#e8849a", desc: "A berry-sweet bear in a strawberry hoodie." },
   { id: 3, name: "Star Sprinkle Keychain", category: "Keychains", price: 9, emoji: "⭐", bg: "#fde8d8", accent: "#e8a070", desc: "Gold-painted resin star with a glitter core." },
@@ -87,6 +103,18 @@ let PRODUCTS: Product[] = [
   { id: 8, name: "Moon Phase Mug", category: "Mugs", price: 20, emoji: "🌙", bg: "#daeeff", accent: "#8bbfe8", desc: "Full moon cycle printed on matte black ceramic." },
   { id: 9, name: "Bunny Plushie", category: "Plushies", price: 26, emoji: "🐰", bg: "#fcdde8", accent: "#e8849a", desc: "Floppy-eared bunny in a soft lavender romper." },
 ];
+
+// PRODUCTS is a catalog that only ever GROWS — every product ever fetched,
+// across every category/page, stays here. This is what the cart and
+// checkout look up by id, so switching categories or loading more never
+// "loses" an item someone already added to their cart.
+let PRODUCTS: Product[] = [...FALLBACK_PRODUCTS];
+
+function mergeIntoCatalog(newOnes: Product[]) {
+  const existingIds = new Set(PRODUCTS.map((p) => p.id));
+  const uniqueNew = newOnes.filter((p) => !existingIds.has(p.id));
+  if (uniqueNew.length) PRODUCTS = [...PRODUCTS, ...uniqueNew];
+}
 
 const BANNERS = [
   { category: "Plushies" as const, tag: "New arrivals", headline: "Soft friends for\nevery desk.", sub: "Ultra-huggable plushies in limited pastel editions.", img: "https://images.unsplash.com/photo-1744608257868-b3a034a85d22?w=1400&h=600&fit=crop&auto=format", alt: "A pile of colorful plushies", overlay: "from-[#fcdde8]/80", dot: "#e8849a" },
@@ -640,21 +668,49 @@ export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [view, setView] = useState<"shop" | "checkout">("shop");
   const [activeCategory, setActiveCategory] = useState<Category>("All");
+  const [displayedProducts, setDisplayedProducts] = useState<Product[]>(FALLBACK_PRODUCTS);
+  const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
   const [productsLoaded, setProductsLoaded] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProducts()
-      .then((data) => {
-        PRODUCTS = data;
-        setProductsError(null);
+    let cancelled = false;
+    setProductsLoaded(false);
+    setProductsError(null);
+    fetchProductsPage(productsUrlFor(activeCategory))
+      .then(({ products, next }) => {
+        if (cancelled) return;
+        mergeIntoCatalog(products);
+        setDisplayedProducts(products);
+        setNextPageUrl(next);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        setProductsError("Couldn't reach the backend — showing sample products instead.");
+        setDisplayedProducts(FALLBACK_PRODUCTS);
+        setNextPageUrl(null);
+      })
+      .finally(() => { if (!cancelled) setProductsLoaded(true); });
+    return () => { cancelled = true; };
+  }, [activeCategory]);
+
+  const loadMore = () => {
+    if (!nextPageUrl || loadingMore) return;
+    setLoadingMore(true);
+    fetchProductsPage(nextPageUrl)
+      .then(({ products, next }) => {
+        mergeIntoCatalog(products);
+        setDisplayedProducts((prev) => [...prev, ...products]);
+        setNextPageUrl(next);
       })
       .catch((err) => {
         console.error(err);
-        setProductsError("Couldn't reach the backend — showing sample products instead.");
+        setProductsError("Couldn't load more products — try again.");
       })
-      .finally(() => setProductsLoaded(true));
-  }, []);
+      .finally(() => setLoadingMore(false));
+  };
 
   const homeRef = useRef<HTMLElement>(null);
   const productsRef = useRef<HTMLElement>(null);
@@ -682,8 +738,6 @@ export default function App() {
     setActiveCategory(cat);
     setTimeout(() => scrollTo("products"), 50);
   };
-
-  const filtered = activeCategory === "All" ? PRODUCTS : PRODUCTS.filter((p) => p.category === activeCategory);
 
   if (view === "checkout") {
     return (
@@ -748,10 +802,22 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {filtered.map((p) => (
+          {displayedProducts.map((p) => (
             <ProductCard key={p.id} product={p} onAdd={addToCart} added={addedIds.has(p.id)} />
           ))}
         </div>
+
+        {nextPageUrl && (
+          <div className="flex justify-center mt-10">
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="bg-white border-2 border-[#b191e8] text-[#b191e8] font-bold px-8 py-3 rounded-full hover:bg-[#b191e8] hover:text-white active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loadingMore ? "Loading…" : "Load more →"}
+            </button>
+          </div>
+        )}
       </section>
 
       {/* CONTACT */}
