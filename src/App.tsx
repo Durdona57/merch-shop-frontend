@@ -18,7 +18,7 @@ interface Product {
 }
 
 /* ── API connection ── */
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "https://onrender.com";
 
 // Visual defaults per category, since the backend only stores real data
 // (name/price/stock/category) — not emoji/colors, which are frontend-only styling.
