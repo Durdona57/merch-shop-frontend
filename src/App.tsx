@@ -18,7 +18,7 @@ interface Product {
 }
 
 /* ── API connection ── */
-const API_BASE = "https://onrender.com/";
+const API_BASE = `${import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000"}/api`;
 
 // Visual defaults per category, since the backend only stores real data
 // (name/price/stock/category) — not emoji/colors, which are frontend-only styling.
